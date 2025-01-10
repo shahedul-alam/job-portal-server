@@ -32,9 +32,11 @@ async function run() {
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
 
-    // database collections
+    // database & collections
     const jobsCollection = client.db("jobPortal").collection("jobs");
-    const jobApplicationCollection = client.db("jobPortal").collection("jobApplications");
+    const jobApplicationCollection = client
+      .db("jobPortal")
+      .collection("jobApplications");
 
     // jobs apis
     app.get("/jobs", async (req, res) => {
@@ -53,13 +55,34 @@ async function run() {
     });
 
     // job application apis
+    app.get("/applications", async (req, res) => {
+      const email = req.query.email;
+      const jobApplications = await jobApplicationCollection
+        .find({ user_email: email })
+        .toArray();
+
+      const jobDetails = await Promise.all(
+        jobApplications.map(async (application) => {
+          const jobDetail = await jobsCollection.findOne({
+            _id: new ObjectId(application.jobId),
+          });
+
+          return {
+            ...application,
+            jobDetail,
+          };
+        })
+      );
+
+      res.send(jobDetails);
+    });
+
     app.post("/apply", async (req, res) => {
       const applicationInfo = req.body;
       const result = await jobApplicationCollection.insertOne(applicationInfo);
-      
+
       res.send(result);
     });
-
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
