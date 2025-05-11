@@ -1,9 +1,10 @@
+require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
-require("dotenv").config();
 const port = process.env.PORT || 5000;
 
 // create the express app
@@ -123,6 +124,22 @@ async function run() {
       res.send(result);
     });
 
+    // payment intent
+    app.post("/create-payment-intent", async (req, res) => {
+      const {price} = req.body;
+      const amount = parseInt(price * 100);
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    });
+
     // jwt apis
     app.post("/generate-token", (req, res) => {
       const user = req.body;
@@ -131,7 +148,8 @@ async function run() {
 
       res.cookie("token", token, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       });
 
       res.send({ success: true });
@@ -139,8 +157,8 @@ async function run() {
 
     app.get("/remove-token", (req, res) => {
       res.clearCookie("token", {
-        httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
       });
 
       res.send({ success: true });
